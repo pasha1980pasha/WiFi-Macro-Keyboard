@@ -1,0 +1,620 @@
+#include <Arduino.h>
+#include <USB.h>
+#include <USBHIDKeyboard.h>
+#include <USBHIDMouse.h>
+#include <WiFi.h>
+#include <WebServer.h>
+#include <ESPmDNS.h>
+
+USBHIDKeyboard Keyboard;
+USBHIDMouse Mouse;
+
+// ================== НАСТРОЙКА WI-FI ==================
+const char* ssid = "GalaxyM";
+const char* password = "www111www";
+
+WebServer server(80);
+
+// ================== КОНСТАНТЫ ДЛЯ НАСТРОЙКИ ==================
+const char TEXT_FOR_BUTTON_0[] = "+123456Zxcvbn";
+
+// ================== СТРУКТУРА КОМАНД МАКРОСОВ ==================
+struct KeyCommand {
+  uint8_t key;
+  int param1;
+  int param2;
+};
+
+#define COMMAND_TERMINATOR 255
+#define MOUSE_MOVE_RELATIVE 254  // Код для перемещения мыши
+#define MOUSE_MOVE_ABSOLUTE 253  // Код для абсолютного перемещения мыши
+#define MOUSE_CLICK 252          // Код для клика мыши
+const int MAX_COMMANDS_PER_BUTTON = 30;
+
+// ================== МАССИВ МАКРОСОВ ДЛЯ КАЖДОЙ КНОПКИ ==================
+KeyCommand macro_commands[][MAX_COMMANDS_PER_BUTTON] = {
+  // ========== КНОПКА 0 (Пин 4) - ТЕКСТОВАЯ КОМАНДА  белый провод ==========
+  { 
+    {0, 1, 0},
+    {COMMAND_TERMINATOR, 0, 0}
+  },
+  
+  // ========== КНОПКА 1 (Пин 5) -   ==========
+  {
+    {0, 0, 50},                            // Движение ВВЕРХ  ВЛЕВО(0, 0) к началу координат
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+
+    {0, 0, 50},
+    {MOUSE_MOVE_RELATIVE, 20, 119},          //крест ЗЕЛЕНЫЙ
+    {0, 0, 50},
+    {MOUSE_CLICK, 1, 0},                    // Левый клик (1 - левая, 2 - правая, 3 - средняя)
+    {0, 0, 100},
+
+    {KEY_RETURN, 1, 500},
+    {0, 0, 100}, 
+    {KEY_UP_ARROW, 1, 500},
+    {KEY_UP_ARROW, 7, 10},
+    {0, 0, 500}, 
+    {KEY_TAB, 2, 10},
+    {0, 0, 500},
+    {KEY_RETURN, 1, 500},
+    {KEY_TAB, 6, 10},
+    {0, 0, 500},
+    {KEY_DELETE, 1, 300},
+    {COMMAND_TERMINATOR, 0, 0}
+  },
+  
+  // ========== КНОПКА 2 (Пин 6) -  ремонт 1 кат ==========
+  { 
+     
+    {0, 0, 50},                   
+    {MOUSE_MOVE_RELATIVE, -100, -100},  // Движение ВВЕРХ  ВЛЕВО(0, 0) к началу координат
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},
+  
+    {0, 0, 50},
+    {MOUSE_MOVE_RELATIVE, 20, 119},// КРЕСТ ЗЕЛЕНЫЙ
+    {0, 0, 50},
+    {MOUSE_CLICK, 1, 0},           // Левый клик (1 - левая, 2 - правая, 3 - средняя)
+    {0, 0, 100},
+
+    {KEY_RETURN, 1, 500},
+    {KEY_UP_ARROW, 1, 500},
+    {KEY_UP_ARROW, 7, 10},
+    {0, 0, 500},
+    {KEY_TAB, 1, 10},
+    {KEY_DOWN_ARROW, 6, 10},
+    {0, 0, 500},
+    {KEY_TAB, 1, 10},
+    {0, 0, 500},
+    {KEY_RETURN, 1, 500},
+    {KEY_TAB, 5, 10},
+    {0, 0, 500},
+    {KEY_DELETE, 1, 300},
+    {COMMAND_TERMINATOR, 0, 0}
+  },
+  
+  // ========== КНОПКА 3 (Пин 7) -  повторная калибровка ==========
+  { 
+    {0, 0, 50},                  
+    {MOUSE_MOVE_RELATIVE, -100, -100},  // Движение ВВЕРХ  ВЛЕВО(0, 0) к началу координат
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                   
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+
+    {0, 0, 50},
+    {MOUSE_MOVE_RELATIVE, 20, 119},//  КРЕСТ ЗЕЛЕНЫЙ
+    {0, 0, 50},
+    {MOUSE_CLICK, 1, 0},           // Левый клик (1 - левая, 2 - правая, 3 - средняя)
+    {0, 0, 100},
+    
+    {KEY_UP_ARROW, 1, 500},
+    {KEY_UP_ARROW, 7, 10},
+    {KEY_TAB, 1, 10},
+    {0, 0, 500},
+    {KEY_DOWN_ARROW, 3, 10},
+    {0, 0, 500},
+    {KEY_TAB, 1, 10},
+    {0, 0, 500},
+    {KEY_RETURN, 1, 500},
+    ссс
+    {KEY_DELETE, 1, 300},
+    {0, 0, 500},
+    
+    {COMMAND_TERMINATOR, 0, 0}
+  },
+   
+
+
+  // ========== КНОПКА 4 (Пин 8) - Ctrl + C (КОПИРОВАТЬ) ==========
+  { 
+    {0, 0, 10},  // Специальный маркер для вызова функции
+    {COMMAND_TERMINATOR, 0, 0}
+  },
+  
+  // ========== КНОПКА 5 (Пин 9) - Ctrl + V (ВСТАВИТЬ) ==========
+  { 
+    {0, 0, 10},  // Специальный маркер для вызова функции
+    {COMMAND_TERMINATOR, 0, 0}
+  },
+  
+
+
+  // ========== КНОПКА 6 (Пин 15) - ГРАФИКИ СИНИЙ ==========
+{ 
+    
+    {KEY_RETURN, 1, 500},         //бюро
+    {0, 0, 100},     
+    {KEY_RETURN, 1, 500},         //новый акт
+     
+    {KEY_TAB, 7, 10},             //граф
+    {KEY_DOWN_ARROW, 3, 10},      //наряд    
+
+    {KEY_RETURN, 1, 500}        
+    {KEY_TAB, 1, 10},             //вид мо
+    {KEY_DOWN_ARROW, 3, 10},      //калиб     
+    {KEY_RETURN, 1, 500}   
+    {KEY_TAB, 5, 10},             //место мо
+    {KEY_RETURN, 1, 500},
+    {KEY_TAB, 4, 10},             //подраз
+    {KEY_DOWN_ARROW, 3, 10},      // участок
+    {0, 0, 100}, 
+
+    {MOUSE_MOVE_RELATIVE, -100, -100},  // Движение ВВЕРХ  ВЛЕВО(0, 0) к началу координат
+    {0, 0, 50},                   
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                   
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                  
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 100}, 
+    
+    
+    {MOUSE_MOVE_RELATIVE, 49, 4}, //Движение к кресту
+    {0, 0, 50}, 
+    {MOUSE_CLICK, 1, 50},    // Левый клик (1 - левая, 2 - правая, 3 - средняя)
+    {KEY_RETURN, 1, 500},
+
+    {KEY_DOWN_ARROW, 6, 10},
+    {KEY_RETURN, 1, 500}
+    {KEY_TAB, 3, 10},
+    {KEY_RETURN, 1, 500}
+    {0, 0, 50},
+
+
+    
+
+    {COMMAND_TERMINATOR, 0, 0}
+  
+  // ========== КНОПКА 7 (Пin 16) - наряд  заказ  белый ==========
+  { 
+    
+    {KEY_RETURN, 1, 500},         //бюро
+    {0, 0, 100},     
+    {KEY_RETURN, 1, 500},         //новый акт
+     
+    {KEY_TAB, 6, 10},             //граф
+    {KEY_DOWN_ARROW, 2, 10},      //наряд    
+
+    {KEY_RETURN, 1, 500}        
+    {KEY_TAB, 1, 10},             //вид мо
+    {KEY_DOWN_ARROW, 3, 10},      //калиб     
+    {KEY_RETURN, 1, 500}   
+    {KEY_TAB, 5, 10},             //место мо
+    {KEY_RETURN, 1, 500},
+    {KEY_TAB, 4, 10},             //подраз
+    {KEY_DOWN_ARROW, 2, 10},      // участок
+    {0, 0, 100}, 
+
+    {MOUSE_MOVE_RELATIVE, -100, -100},  // Движение ВВЕРХ  ВЛЕВО(0, 0) к началу координат
+    {0, 0, 50},                   
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                   
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                    
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 50},                  
+    {MOUSE_MOVE_RELATIVE, -100, -100},  
+    {0, 0, 100}, 
+    
+    
+    {MOUSE_MOVE_RELATIVE, 49, 4}, //Движение к кресту
+    {0, 0, 50}, 
+    {MOUSE_CLICK, 1, 50},    // Левый клик (1 - левая, 2 - правая, 3 - средняя)
+    {KEY_RETURN, 1, 500},
+
+    {KEY_DOWN_ARROW, 6, 10},
+    {KEY_RETURN, 1, 500}
+    {KEY_TAB, 3, 10},
+    {KEY_RETURN, 1, 500}
+    {0, 0, 50},
+
+
+    
+
+    {COMMAND_TERMINATOR, 0, 0}
+  },
+  
+  // ========== КНОПКА 8 (Пин 17) - ЗАВЕРШЕНИЕ   КАЛИБРОВКА РЕМОНТ КАЛИБРОВКА==========
+  { 
+    {KEY_TAB, 16, 10},
+    {0, 0, 100}, 
+    {KEY_RETURN, 1, 50}
+    {COMMAND_TERMINATOR, 0, 0}
+  },
+ 
+  // ========== КНОПКА 9 (Пин 18) - Дополнительная функция 2 ==========
+  { 
+    {MOUSE_CLICK, 1, 0},           // Левый клик (1 - левая, 2 - правая, 3 - средняя)
+    {0, 0, 100},                   // Задержка после клика
+    {COMMAND_TERMINATOR, 0, 0}
+    
+  }
+};
+
+const char* text_commands[] = {
+  TEXT_FOR_BUTTON_0, "", "", "", "", "", "", "", "", ""
+};
+
+// ================== КОНФИГУРАЦИЯ КНОПОК ==================
+const int buttonPins[] = {4, 5, 6, 7, 8, 9, 15, 16, 17, 18};
+const int numButtons = 10;
+
+// Переменные для управления мышью
+int mouseX = 0;
+int mouseY = 0;
+const int mouseStep = 10;  // Шаг перемещения мыши
+
+bool buttonPressed[numButtons] = {false};
+unsigned long lastDebounceTime[numButtons] = {0};
+const unsigned long debounceDelay = 50;
+
+// ================== ПРОТОТИПЫ ФУНКЦИЙ ==================
+void executeMacro(int buttonIndex);
+void executeKeyCommand(uint8_t key, int param1, int param2);
+void handleRoot();
+void handleMacro();
+void handleStatus();
+void executeCtrlC();
+void executeCtrlV();
+void handleMouseControl(int buttonIndex);
+
+// ================== НАСТРОЙКА ==================
+void setup() {
+  Serial.begin(115200);
+  
+  for (int i = 0; i < numButtons; i++) {
+    pinMode(buttonPins[i], INPUT_PULLUP);
+  }
+  
+  Keyboard.begin();
+  Mouse.begin();
+  USB.begin();
+
+  WiFi.softAP(ssid, password);
+  
+  IPAddress local_ip(10, 0, 0, 1);
+  IPAddress gateway(10, 0, 0, 1);
+  IPAddress subnet(255, 255, 255, 0);
+  WiFi.softAPConfig(local_ip, gateway, subnet);
+
+  if (!MDNS.begin("pavlik")) {
+    Serial.println("Error setting up MDNS responder!");
+  }
+
+  server.on("/", handleRoot);
+  server.on("/macro", handleMacro);
+  server.on("/status", handleStatus);
+  
+  server.begin();
+  Serial.println("HTTP server started");
+  Serial.print("AP IP address: ");
+  Serial.println(WiFi.softAPIP());
+}
+
+// ================== ГЛАВНЫЙ ЦИКЛ ==================
+void loop() {
+  server.handleClient();
+  
+  for (int i = 0; i < numButtons; i++) {
+    int buttonState = digitalRead(buttonPins[i]);
+    
+    if (buttonState == LOW) {
+      if (millis() - lastDebounceTime[i] > debounceDelay) {
+        if (!buttonPressed[i]) {
+          executeMacro(i);
+          buttonPressed[i] = true;
+          lastDebounceTime[i] = millis();
+        }
+      }
+    } else {
+      buttonPressed[i] = false;
+    }
+  }
+  
+  delay(5);
+}
+
+// ================== ВЕБ-ИНТЕРФЕЙС ==================
+void handleRoot() {
+  String html = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Macro Keyboard Control</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
+        .btn { display: block; width: 100%; padding: 15px; margin: 10px 0; font-size: 18px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn-0 { background: #ff4444; color: white; }
+        .btn-1 { background: #44ff44; color: black; }
+        .btn-2 { background: #4444ff; color: white; }
+        .btn-3 { background: #ffff44; color: black; }
+        .btn-4 { background: #ff44ff; color: white; }
+        .btn-5 { background: #44ffff; color: black; }
+        .btn-6 { background: #ff8844; color: white; }
+        .btn-7 { background: #4488ff; color: white; }
+        .btn-8 { background: #88ff44; color: black; }
+        .btn-9 { background: #ff44aa; color: white; }
+        .status { background: white; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .mouse-control { background: white; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .mouse-btn { padding: 10px; margin: 5px; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <h1>Macro Keyboard Control</h1>
+    <div class="status">
+        <strong>Status:</strong> <span id="status">Connected</span><br>
+        <strong>Device:</strong> pavlik<br>
+        <strong>IP:</strong> 10.0.0.1<br>
+        <strong>DNS:</strong> pavlik.local
+    </div>
+    
+    <button class="btn btn-0" onclick="runMacro(0)">4 - PAROL</button>
+    <button class="btn btn-1" onclick="runMacro(1)">5 - KALIB</button>
+    <button class="btn btn-2" onclick="runMacro(2)">6 - SMESH</button>
+    <button class="btn btn-3" onclick="runMacro(3)">7 - P KALIB</button>
+    <button class="btn btn-4" onclick="runMacro(4)">8 - Ctrl+C</button>
+    <button class="btn btn-5" onclick="runMacro(5)">9 - Ctrl+V</button>
+    <button class="btn btn-6" onclick="runMacro(6)">15 - MAUS LEFT</button>
+    <button class="btn btn-7" onclick="runMacro(7)">16 - MAUS UP</button>
+    <button class="btn btn-8" onclick="runMacro(8)">17 - MOUSE CLICK</button>
+    <button class="btn btn-9" onclick="runMacro(9)">18 - NOT</button>
+
+    <div class="mouse-control">
+        <h3>Управление мышью</h3>
+        <button class="mouse-btn" onclick="moveMouse('up')">↑ Вверх</button>
+        <button class="mouse-btn" onclick="moveMouse('down')">↓ Вниз</button>
+        <button class="mouse-btn" onclick="moveMouse('left')">← Лево</button>
+        <button class="mouse-btn" onclick="moveMouse('right')">→ Право</button>
+        <button class="mouse-btn" onclick="moveMouse('click')">🖱️ Клик</button>
+    </div>
+
+    <script>
+        function runMacro(button) {
+            fetch('/macro?btn=' + button)
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('status').textContent = 'Executed: Button ' + button;
+                    setTimeout(() => {
+                        document.getElementById('status').textContent = 'Ready';
+                    }, 2000);
+                });
+        }
+
+        function moveMouse(direction) {
+            fetch('/macro?btn=' + direction)
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('status').textContent = 'Mouse: ' + direction;
+                    setTimeout(() => {
+                        document.getElementById('status').textContent = 'Ready';
+                    }, 1000);
+                });
+        }
+    </script>
+</body>
+</html>
+)rawliteral";
+
+  server.send(200, "text/html", html);
+}
+
+void handleMacro() {
+  if (server.hasArg("btn")) {
+    String btnArg = server.arg("btn");
+    
+    // Обработка команд мыши из веб-интерфейса
+    if (btnArg == "up") {
+      Mouse.move(0, -mouseStep);
+      server.send(200, "text/plain", "Mouse moved up");
+      return;
+    } else if (btnArg == "down") {
+      Mouse.move(0, mouseStep);
+      server.send(200, "text/plain", "Mouse moved down");
+      return;
+    } else if (btnArg == "left") {
+      Mouse.move(-mouseStep, 0);
+      server.send(200, "text/plain", "Mouse moved left");
+      return;
+    } else if (btnArg == "right") {
+      Mouse.move(mouseStep, 0);
+      server.send(200, "text/plain", "Mouse moved right");
+      return;
+    } else if (btnArg == "click") {
+      Mouse.click();
+      server.send(200, "text/plain", "Mouse clicked");
+      return;
+    }
+    
+    // Обработка обычных макросов
+    int buttonIndex = btnArg.toInt();
+    if (buttonIndex >= 0 && buttonIndex < numButtons) {
+      executeMacro(buttonIndex);
+      server.send(200, "text/plain", "Macro " + String(buttonIndex) + " executed");
+    }
+  }
+}
+
+void handleStatus() {
+  String status = "Device active\nIP: 10.0.0.1\nDNS: pavlik.local\n";
+  status += "Connected devices: " + String(WiFi.softAPgetStationNum());
+  status += "\nMouse position: X=" + String(mouseX) + ", Y=" + String(mouseY);
+  server.send(200, "text/plain", status);
+}
+
+// ================== ФУНКЦИИ ДЛЯ CTRL+C/V ==================
+void executeCtrlC() {
+  Keyboard.press(KEY_LEFT_CTRL);
+  Keyboard.press('c');
+  delay(50);
+  Keyboard.release('c');
+  Keyboard.release(KEY_LEFT_CTRL);
+  delay(100);
+}
+
+void executeCtrlV() {
+  Keyboard.press(KEY_LEFT_CTRL);
+  Keyboard.press('v');
+  delay(50);
+  Keyboard.release('v');
+  Keyboard.release(KEY_LEFT_CTRL);
+  delay(100);
+}
+
+// ================== УПРАВЛЕНИЕ МЫШЬЮ ==================
+void handleMouseControl(int buttonIndex) {
+  switch (buttonIndex) {
+    case 6:  // Пин 15 - Движение мыши влево
+      mouseX -= mouseStep;
+      Mouse.move(-mouseStep, 0);
+      break;
+      
+    case 7:  // Пин 16 - Движение мыши вверх
+      mouseY -= mouseStep;
+      Mouse.move(0, -mouseStep);
+      break;
+      
+    case 8:  // Пин 17 - Клик мыши
+      Mouse.click();
+      break;
+      
+    case 9:  // Пин 18 - Дополнительная функция
+      // Можно добавить любую другую функцию
+      break;
+  }
+  
+  delay(100);
+}
+
+// ================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==================
+void executeMacro(int buttonIndex) {
+  // Для кнопки 0 - отправка текстовой команды
+  if (buttonIndex == 0) {
+    Keyboard.println(text_commands[buttonIndex]);
+    return;
+  }
+  
+  // Для кнопки 4 - Ctrl+C
+  if (buttonIndex == 4) {
+    executeCtrlC();
+    return;
+  }
+  
+  // Для кнопки 5 - Ctrl+V
+  if (buttonIndex == 5) {
+    executeCtrlV();
+    return;
+  }
+  
+  // Для кнопок 6-9 - управление мышью через макросы
+  if (buttonIndex >= 6 && buttonIndex <= 9) {
+    for (int i = 0; i < MAX_COMMANDS_PER_BUTTON; i++) {
+      KeyCommand cmd = macro_commands[buttonIndex][i];
+      if (cmd.key == COMMAND_TERMINATOR) break;
+      
+      executeKeyCommand(cmd.key, cmd.param1, cmd.param2);
+    }
+    return;
+  }
+  
+  // Остальные кнопки - обычные макросы
+  for (int i = 0; i < MAX_COMMANDS_PER_BUTTON; i++) {
+    KeyCommand cmd = macro_commands[buttonIndex][i];
+    if (cmd.key == COMMAND_TERMINATOR) break;
+    
+    if (cmd.key == 0 && cmd.param1 == 0) {
+      delay(cmd.param2);
+      continue;
+    }
+    
+    executeKeyCommand(cmd.key, cmd.param1, cmd.param2);
+  }
+}
+
+void executeKeyCommand(uint8_t key, int param1, int param2) {
+  // Обработка команды относительного перемещения мыши
+  if (key == MOUSE_MOVE_RELATIVE) {
+    Mouse.move(param1, param2);  // param1 = X, param2 = Y
+    return;
+  }
+  
+  // Обработка команды абсолютного перемещения мыши
+  if (key == MOUSE_MOVE_ABSOLUTE) {
+    Mouse.move(param1 - mouseX, param2 - mouseY);
+    mouseX = param1;
+    mouseY = param2;
+    return;
+  }
+  
+  // Обработка клика мыши
+  if (key == MOUSE_CLICK) {
+    if (param1 == 1) {
+      Mouse.click(MOUSE_LEFT);
+    } else if (param1 == 2) {
+      Mouse.click(MOUSE_RIGHT);
+    } else if (param1 == 3) {
+      Mouse.click(MOUSE_MIDDLE);
+    }
+    if (param2 > 0) delay(param2);
+    return;
+  }
+  
+  // Стандартная обработка клавиш
+  if (param1 > 0) {
+    for (int j = 0; j < param1; j++) {
+      Keyboard.press(key);
+      Keyboard.release(key);
+      if (param2 > 0 && j < param1 - 1) delay(param2);
+    }
+    if (param2 > 0) delay(param2);
+  } else {
+    // Если multiplier = 0, то это задержка
+    delay(param2);
+  }
+}
